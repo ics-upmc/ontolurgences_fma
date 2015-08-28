@@ -11,6 +11,10 @@ import java.util.logging.StreamHandler;
 
 import org.semanticweb.owlapi.model.IRI;
 
+import com.google.common.collect.EnumMultiset;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Multiset.Entry;
+
 
 public class FmaPartOfModel {
 	private static Logger logger = Logger.getLogger(FmaPartOfModel.class.getName());
@@ -27,9 +31,11 @@ public class FmaPartOfModel {
 	}
 
 	private Map<IRI, Map<PartOfType, Set<IRI>>> index = null;
+	private Multiset<PartOfType> stats = null;
 	
 	public FmaPartOfModel() {
 		index = new TreeMap<IRI, Map<PartOfType, Set<IRI>>>();
+		stats = EnumMultiset.create(PartOfType.class);
 	}
 	
 	public void addConcept(IRI father, IRI son, PartOfType property) {
@@ -43,12 +49,22 @@ public class FmaPartOfModel {
 			content.put(property, new HashSet<IRI>());
 		}
 		content.get(property).add(father);
+		stats.add(property);
 	}
 	
 	public int size() {
 		return index.size();
 	}
 	
+	public String getStatsString() {
+		StringBuilder buffer = new StringBuilder();
+		for(Entry<PartOfType> entrySet: stats.entrySet()) {
+			buffer.append(entrySet);
+			buffer.append('\n');
+		}
+		return buffer.toString();
+	}
+
 	public Set<IRI> getUpConcepts(IRI cls, PartOfType objectProperty) {
 		if(!index.containsKey(cls)) {
 			return new HashSet<IRI>();

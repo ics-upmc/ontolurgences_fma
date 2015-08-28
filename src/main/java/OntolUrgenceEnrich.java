@@ -47,6 +47,7 @@ public class OntolUrgenceEnrich {
 		logger.info("Index part/partOf");
 		FmaPartOfModel classIsPartOf = FmaPartOfIndexer.buildPartOfModel(fma);
 		logger.info("I have found " + classIsPartOf.size() + " concepts part of something");
+		logger.info(classIsPartOf.getStatsString());
 	
 		logger.info("Load OntolUrgences");
 		final File ontolurgencesPath = new File(
