@@ -85,9 +85,9 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		structureAnatomique = df.getOWLClass(IRI.create(ontolurgenceNS,	"StructureAnatomique"));
 		diagnostic = df.getOWLClass(IRI.create(ontolurgenceNS, "EtatPathologique"));
 
-		stopFatherIris.add(IRI.create(fmaNS, "Physical_anatomical_entity"));
-		stopFatherIris.add(IRI.create(fmaNS, "Non-physical_anatomical_entity"));
-		stopFatherIris.add(IRI.create(fmaNS, "General_anatomical_term"));
+		stopFatherIris.add(IRI.create(fmaNS, "fma61775")); // Physical_anatomical_entity
+		stopFatherIris.add(IRI.create(fmaNS, "fma67115")); // Non-physical_anatomical_entity
+		stopFatherIris.add(IRI.create(fmaNS, "fma29733")); // General_anatomical_term
 		
 		aaaProp = df.getOWLAnnotationProperty(IRI.create(ontolurgenceNS + "aaa"));
 
@@ -248,9 +248,8 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 
 		final Collection<PartOfType> partOfPriority = Arrays.asList(
 				PartOfType.REGIONAL_PART,
-				PartOfType.SYSTEMIC_PART,
 				PartOfType.CONSTITUTIONAL_PART,
-				PartOfType.PART);
+				PartOfType.MEMBER);
 		
 		Set<IRI> fathers = null;
 		for(PartOfType type: partOfPriority) {

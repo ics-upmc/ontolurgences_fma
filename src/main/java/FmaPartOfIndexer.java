@@ -1,10 +1,15 @@
 import java.util.Collections;
+import java.util.Set;
 
 import org.semanticweb.owlapi.model.IRI;
+import org.semanticweb.owlapi.model.OWLClassExpression;
+import org.semanticweb.owlapi.model.OWLObjectIntersectionOf;
 import org.semanticweb.owlapi.model.OWLObjectProperty;
 import org.semanticweb.owlapi.model.OWLObjectPropertyAssertionAxiom;
 import org.semanticweb.owlapi.model.OWLObjectPropertyExpression;
+import org.semanticweb.owlapi.model.OWLObjectSomeValuesFrom;
 import org.semanticweb.owlapi.model.OWLOntology;
+import org.semanticweb.owlapi.model.OWLSubClassOfAxiom;
 import org.semanticweb.owlapi.util.OWLOntologyWalker;
 import org.semanticweb.owlapi.util.OWLOntologyWalkerVisitor;
 
@@ -18,22 +23,29 @@ public class FmaPartOfIndexer extends OWLOntologyWalkerVisitor<Object> {
 	}
 
 	@Override
-	public Object visit(OWLObjectPropertyAssertionAxiom axiom) {
-		OWLObjectPropertyExpression property = axiom.getProperty();
-		OWLObjectProperty namedProperty = property.getNamedProperty();
-		IRI propIri = namedProperty.getIRI();
-		
-		if (PartOfType.isSomePart(propIri)) {
-			IRI objiri = axiom.getObject().asOWLNamedIndividual().getIRI();
-			IRI subiri = axiom.getSubject().asOWLNamedIndividual().getIRI();
-			PartOfType type = PartOfType.getTypeFromIri(propIri);			
-			classIsPartOf.addConcept(subiri, objiri, type);
+	public Object visit(OWLSubClassOfAxiom axiom) {
+		OWLClassExpression superClass = axiom.getSuperClass();
+		OWLClassExpression subClass = axiom.getSubClass();
+
+		if(superClass.isAnonymous() && !subClass.isAnonymous() && superClass instanceof OWLObjectSomeValuesFrom) {
+			OWLObjectSomeValuesFrom someObject = (OWLObjectSomeValuesFrom) superClass;
+			OWLObjectPropertyExpression property = someObject.getProperty();
+			OWLObjectProperty namedProperty = property.getNamedProperty();
+			IRI propIri = namedProperty.getIRI();
+
+			if (PartOfType.isSomePart(propIri)) {
+				IRI objiri = someObject.getFiller().asOWLClass().getIRI();
+				IRI subiri = subClass.asOWLClass().getIRI();
+				PartOfType type = PartOfType.getTypeFromIri(propIri);
+				classIsPartOf.addConcept(subiri, objiri, type);
+			}
+			if (PartOfType.isSomePartOf(propIri)) {
+				IRI objiri = someObject.getFiller().asOWLClass().getIRI();
+				IRI subiri = subClass.asOWLClass().getIRI();
+				PartOfType type = PartOfType.getTypeFromIri(propIri);
+				classIsPartOf.addConcept(objiri, subiri, type);
+			}
 		}
-		if (PartOfType.isSomePartOf(propIri)) {
-			IRI objiri = axiom.getObject().asOWLNamedIndividual().getIRI();
-			IRI subiri = axiom.getSubject().asOWLNamedIndividual().getIRI();
-			PartOfType type = PartOfType.getTypeFromIri(propIri);
-			classIsPartOf.addConcept(objiri, subiri, type);		}
 		return super.visit(axiom);
 	}
 

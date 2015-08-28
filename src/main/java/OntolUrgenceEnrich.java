@@ -34,10 +34,12 @@ public class OntolUrgenceEnrich {
 	 * @param args
 	 */
 	public static void main(String[] args) {
+		System.setProperty("jdk.xml.entityExpansionLimit", "0");
+		
 		OWLOntologyManager manager = OWLManager.createOWLOntologyManager();
 		
 		logger.info("Load FMA");
-		final File fmaPath = new File("/home/mazman/ontologies/fma_3.2.1_owl_file/fma3.2.owl");
+		final File fmaPath = new File("/home/mazman/ontologies/fma_4.0.1.owl");
 		OWLOntology fma = Tools.loadFromFile(manager, fmaPath);
 
 		logger.info("Index FMA");
@@ -51,7 +53,7 @@ public class OntolUrgenceEnrich {
 	
 		logger.info("Load OntolUrgences");
 		final File ontolurgencesPath = new File(
-				"/home/mazman/Bureau/FMA/OntolUrgences_reset.owl");
+				"/home/mazman/ontologies/OntolUrgences/ontologie_fma_systeme_20150817.reset.owl");
 		OWLOntology ontolurgences = Tools.loadFromFile(manager, ontolurgencesPath);		
 
 		logger.info("Insert FMA class");
@@ -60,7 +62,7 @@ public class OntolUrgenceEnrich {
 				ontolWalker, fma, fmaIndex, classIsPartOf);
 		ontolWalker.walkStructure(ontolvisitor);
 
-		final File outputFilePath = new File("/home/mazman/Bureau/FMA/OntolUrgences_new.owl");
+		final File outputFilePath = new File("/home/mazman/Bureau/OntolUrgences_new.owl");
 		Tools.saveToFile(ontolurgences, outputFilePath);
 		logger.info("Finished!!!");
 	}

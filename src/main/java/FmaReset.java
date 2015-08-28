@@ -19,11 +19,11 @@ import org.semanticweb.owlapi.util.OWLOntologyWalkerVisitor;
 
 public class FmaReset {
 
-	private static String output_folder = "/home/mazman/Bureau/FMA/";
-	private static String ontolurgences = output_folder + "OntolUrgences_v3.0.3_20140416.owl";
-	private static String ontolurgences_reseted = output_folder + "OntolUrgences_reset.owl";
+	private static String output_folder = "/home/mazman/ontologies/OntolUrgences/";
+	private static String ontolurgences = output_folder + "ontologie_fma_systeme_20150817.owl";
+	private static String ontolurgences_reseted = output_folder + "ontologie_fma_systeme_20150817.reset.owl";
 
-	private static String fmaNS = "http://purl.org/sig/fma/";
+	private static String fmaNS = "http://purl.org/sig/ont/fma/";
 	private static String ontolurgenceNS = "http://doe-generated-ontology.com/UrgencesDMP#";
 	
 

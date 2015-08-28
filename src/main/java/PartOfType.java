@@ -3,9 +3,8 @@ import org.semanticweb.owlapi.model.IRI;
 
 public enum PartOfType {
 	REGIONAL_PART,
-	SYSTEMIC_PART,
 	CONSTITUTIONAL_PART,
-	PART;
+	MEMBER;
 	
 	public IRI getPartIRI() {
 		String name = name().toLowerCase();
