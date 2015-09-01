@@ -11,6 +11,7 @@ import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.logging.StreamHandler;
 
+import org.javatuples.Pair;
 import org.semanticweb.owlapi.model.IRI;
 import org.semanticweb.owlapi.model.OWLAnnotation;
 import org.semanticweb.owlapi.model.OWLAnnotationAssertionAxiom;
@@ -42,9 +43,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		logger.setLevel(Level.ALL);
 		logger.setUseParentHandlers(false);
 	}
-
 	
-	private OWLAnnotationProperty pourfmaProp;
 	private OWLObjectProperty localized;
 	private OWLAnnotationProperty fmaNameProp;
 	private OWLAnnotationProperty rdfsLabelProp;
@@ -74,7 +73,6 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		String fmaNS = Namespace.FMA.getNS();
 		OWLDataFactory df = ontology.getOWLOntologyManager().getOWLDataFactory();
 		
-		pourfmaProp = df.getOWLAnnotationProperty(IRI.create(ontolurgenceNS, "pourFMA"));
 		localized = df.getOWLObjectProperty(IRI.create(ontolurgenceNS, "localized"));
 
 		fmaNameProp = df.getOWLAnnotationProperty(IRI.create(fmaNS, "name"));
@@ -94,13 +92,36 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		return super.visit(ontology);
 	}
 
+	private Pair<PourFmaType, Set<OWLAnnotation>> getPourFmaAnnotation(OWLClass currentClass) {
+		OWLOntology ont = getCurrentOntology();
+		OWLOntologyManager manager = ont.getOWLOntologyManager();
+		OWLDataFactory df = manager.getOWLDataFactory();
+
+		PourFmaType foundType = null;
+		Set<OWLAnnotation> annots = new HashSet<>();
+		for(PourFmaType fmaType: PourFmaType.values()) {
+			OWLAnnotationProperty pourFma = df.getOWLAnnotationProperty(fmaType.getIRI());
+			Set<OWLAnnotation> localAnnotations = currentClass.getAnnotations(ont, pourFma);
+			if(!annots.isEmpty() && !localAnnotations.isEmpty()) {
+				throw new IllegalArgumentException("pourFMAO and pourFMA in the same class: "+currentClass);
+			} else if(!localAnnotations.isEmpty()){
+				annots = localAnnotations;
+				foundType = fmaType;
+			}
+		}
+		return new Pair<>(foundType, annots);
+	}
+
 	@Override
 	public Object visit(OWLClass desc) {
 		OWLOntology ont = getCurrentOntology();
 		OWLOntologyManager manager = ont.getOWLOntologyManager();
 		OWLDataFactory df = manager.getOWLDataFactory();
 		
-		Set<OWLAnnotation> annots = desc.getAnnotations(ont, pourfmaProp);
+		Pair<PourFmaType, Set<OWLAnnotation>> fmaAnnotations = getPourFmaAnnotation(desc);
+		PourFmaType pourFmaType= fmaAnnotations.getValue0();
+		Set<OWLAnnotation> annots = fmaAnnotations.getValue1();
+
 		Set<OWLClass> fmaClasses = new HashSet<OWLClass>();
 		for (OWLAnnotation annot : annots) {
 			OWLAnnotationValue v = annot.getValue();
@@ -114,7 +135,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 						+ desc.toString() + ")");
 			} else {
 				OWLClass fmaCls = fmaIndex.get(fmaId);
-				convertFmaConceptToOntolUrgenceConcept(fmaCls);
+				convertFmaConceptToOntolUrgenceConcept(fmaCls, pourFmaType);
 				fmaClasses.add(fmaCls);
 
 				OWLAnnotationValue labelAnnot = extractLabelFromFma(fmaCls);
@@ -127,7 +148,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 			}
 		}
 		if (!fmaClasses.isEmpty()) {
-			OWLEquivalentClassesAxiom ax = getAxiom(desc, fmaClasses);
+			OWLEquivalentClassesAxiom ax = getAxiom(desc, fmaClasses, pourFmaType);
 			manager.addAxiom(ont, ax);
 			if (fmaClasses.size() > 1)
 				logger.warning("Many FMA ID: (class " + desc.toString()
@@ -157,7 +178,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 
 	private Set<IRI> alreadyMadeFma = new HashSet<IRI>();
 
-	public void convertFmaConceptToOntolUrgenceConcept(OWLClass cls) {
+	public void convertFmaConceptToOntolUrgenceConcept(OWLClass cls, PourFmaType pourFmaType) {
 		if (alreadyMadeFma.contains(cls.getIRI()))
 			return;
 		alreadyMadeFma.add(cls.getIRI());
@@ -183,13 +204,13 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 				.getOWLAnnotationAssertionAxiom(cls.getIRI(), annot);
 		manager.addAxiom(getCurrentOntology(), annotAxiom);
 
-		convertFMAConceptToDisease(cls);
+		convertFMAConceptToDisease(cls, pourFmaType);
 
 		Set<IRI> fathers = classIsPartOf.getUpConcepts(cls.getIRI());
 		if (!fathers.isEmpty()) {
 			for (IRI fatheriri : fathers) {
 				OWLClass father = df.getOWLClass(fatheriri);
-				convertFmaConceptToOntolUrgenceConcept(father);
+				convertFmaConceptToOntolUrgenceConcept(father, pourFmaType);
 			}
 		}
 
@@ -206,14 +227,14 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(cls,
 						father);
 				manager.addAxiom(getCurrentOntology(), subAxiom);
-				convertFmaConceptToOntolUrgenceConcept(father);
+				convertFmaConceptToOntolUrgenceConcept(father, pourFmaType);
 			}
 		}
 	}
 
 	private Set<IRI> alreadyMadeDisease = new HashSet<IRI>();
 
-	public void convertFMAConceptToDisease(OWLClass cls) {
+	public void convertFMAConceptToDisease(OWLClass cls, PourFmaType pourFmaType) {
 		if (alreadyMadeDisease.contains(cls.getIRI()))
 			return;
 		alreadyMadeDisease.add(cls.getIRI());
@@ -243,7 +264,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		manager.addAxiom(getCurrentOntology(), annotAxiom);
 
 		OWLEquivalentClassesAxiom ax = getAxiom(newCls,
-				Collections.singleton(cls));
+				Collections.singleton(cls), pourFmaType);
 		manager.addAxiom(getCurrentOntology(), ax);
 
 		final Collection<PartOfType> partOfPriority = Arrays.asList(
@@ -273,7 +294,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 					OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(
 							newCls, diseaseFather);
 					manager.addAxiom(getCurrentOntology(), subAxiom);
-					convertFMAConceptToDisease(df.getOWLClass(father));
+					convertFMAConceptToDisease(df.getOWLClass(father), pourFmaType);
 				}
 			}
 			return;
@@ -292,7 +313,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 			} else {
 				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(newCls, diseaseFather);
 				manager.addAxiom(getCurrentOntology(), subAxiom);
-				convertFMAConceptToDisease(father);
+				convertFMAConceptToDisease(father, pourFmaType);
 			}
 		}
 	}
@@ -303,34 +324,52 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 			   stopFatherIris.contains(father_iri);
 	}
 
-	private OWLEquivalentClassesAxiom getAxiom(OWLClass ontolClass,
-			Collection<OWLClass> fma_classes) {
+	private OWLEquivalentClassesAxiom getAxiom(
+			OWLClass ontolClass,
+			Collection<OWLClass> fma_classes,
+			PourFmaType fmaRelationType) {
 		OWLOntology ont = getCurrentOntology();
 		OWLOntologyManager manager = ont.getOWLOntologyManager();
 		OWLDataFactory df = manager.getOWLDataFactory();		
-		
-		Set<OWLClassExpression> ontolClassFathers = ontolClass
-				.getSuperClasses(getCurrentOntology());
-		Set<OWLClassExpression> onlyIntersection = new HashSet<OWLClassExpression>();
-		for (OWLClass fma_class : fma_classes) {
-			OWLClassExpression localizedSomeFMA = df
-					.getOWLObjectSomeValuesFrom(localized, fma_class);
-			ontolClassFathers.add(localizedSomeFMA);
-			onlyIntersection.add(fma_class);
-		}
-		OWLClassExpression onlyIntersectionAxiom = null;
-		if (onlyIntersection.size() == 1) {
-			onlyIntersectionAxiom = onlyIntersection.iterator().next();
-		} else {
-			onlyIntersectionAxiom = df
-					.getOWLObjectIntersectionOf(onlyIntersection);
-		}
-		OWLClassExpression localizedOnlyFMA = df.getOWLObjectAllValuesFrom(
-				localized, onlyIntersectionAxiom);
-		ontolClassFathers.add(localizedOnlyFMA);
 
-		OWLClassExpression intersection = df
-				.getOWLObjectIntersectionOf(ontolClassFathers);
+		// pourFMAO
+		// A and ((localized some L1) or (localized some L2)) and (localized only (L1 or L2))
+
+		// pourFMAO
+		// A and ((localized some L1) and (localized some L2)) and (localized only (L1 and L2))
+		
+		Set<OWLClassExpression> classesForFinalIntersection = ontolClass.getSuperClasses(getCurrentOntology());
+		Set<OWLClassExpression> classesForSome = new HashSet<OWLClassExpression>();
+		Set<OWLClassExpression> classesForOnly = new HashSet<OWLClassExpression>();
+		for (OWLClass fma_class : fma_classes) {
+			OWLClassExpression localizedSomeFMA = df.getOWLObjectSomeValuesFrom(localized, fma_class);
+			classesForSome.add(localizedSomeFMA);
+			classesForOnly.add(fma_class);
+		}
+
+		OWLClassExpression someAxiom = null;
+		OWLClassExpression onlyAxiom = null;
+		if(classesForSome.size() == 1) {
+			someAxiom = classesForSome.iterator().next();
+			onlyAxiom = classesForOnly.iterator().next();
+		}
+		else {
+			OWLClassExpression forOnlyAxiom = null;
+			if(fmaRelationType == PourFmaType.pourFMA) {
+				someAxiom = df.getOWLObjectIntersectionOf(classesForSome);
+				forOnlyAxiom = df.getOWLObjectIntersectionOf(classesForOnly);
+			} else if(fmaRelationType == PourFmaType.pourFMAO) {
+				someAxiom = df.getOWLObjectUnionOf(classesForSome);
+				forOnlyAxiom = df.getOWLObjectUnionOf(classesForOnly);
+			} else {
+				throw new IllegalArgumentException("Cannot handle this unkwon relation: "+fmaRelationType);
+			}
+			onlyAxiom = df.getOWLObjectAllValuesFrom(localized, forOnlyAxiom);
+		}
+		classesForFinalIntersection.add(someAxiom);
+		classesForFinalIntersection.add(onlyAxiom);
+
+		OWLClassExpression intersection = df.getOWLObjectIntersectionOf(classesForFinalIntersection);
 		return df.getOWLEquivalentClassesAxiom(ontolClass, intersection);
 	}
 }
