@@ -23,7 +23,8 @@ public class FmaReset {
 	private static String ontolurgences = output_folder + "ontologie_fma_systeme_20150817.owl";
 	private static String ontolurgences_reseted = output_folder + "ontologie_fma_systeme_20150817.reset.owl";
 
-	private static String fmaNS = "http://purl.org/sig/ont/fma/";
+	private static String fma3NS = "http://purl.org/sig/fma/";
+	private static String fma4NS = "http://purl.org/sig/ont/fma/";
 	private static String ontolurgenceNS = "http://doe-generated-ontology.com/UrgencesDMP#";
 	
 
@@ -40,7 +41,9 @@ public class FmaReset {
 
 		@Override
 		public Object visit(OWLClass desc) {
-			if (desc.getIRI().getNamespace().equals(fmaNS))
+			if (desc.getIRI().getNamespace().equals(fma3NS))
+				collected.add(desc);
+			if (desc.getIRI().getNamespace().equals(fma4NS))
 				collected.add(desc);
 			if (desc.getIRI().getFragment().startsWith("DiseaseOf"))
 				collected.add(desc);
