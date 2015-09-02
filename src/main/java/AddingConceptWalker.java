@@ -51,6 +51,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 	private OWLObjectProperty localized;
 	private OWLAnnotationProperty fmaNameProp;
 	private OWLAnnotationProperty rdfsLabelProp;
+	private OWLAnnotationProperty prefLabelProp;
 	private OWLClass structureAnatomique;
 	private OWLClass diagnostic;
 	private OWLAnnotationProperty fmaIDProp;
@@ -102,6 +103,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		fmaIDProp = df.getOWLAnnotationProperty(IRI.create(fmaNS, "FMAID"));
 
 		rdfsLabelProp = df.getRDFSLabel();
+		prefLabelProp = df.getOWLAnnotationProperty(SKOSVocabulary.PREFLABEL.getIRI());
 
 		structureAnatomique = df.getOWLClass(IRI.create(ontolurgenceNS,	"StructureAnatomique"));
 		diagnostic = df.getOWLClass(IRI.create(ontolurgenceNS, "EtatPathologique"));
@@ -162,20 +164,17 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 				fmaClasses.add(fmaCls);
 
 				OWLAnnotationValue labelAnnot = extractLabelFromFma(fmaCls);
-				OWLAnnotation aaa_annot = df.getOWLAnnotation(aaaProp,
-						labelAnnot);
-				OWLAnnotationAssertionAxiom annotAxiom = df
-						.getOWLAnnotationAssertionAxiom(desc.getIRI(),
-								aaa_annot);
+				OWLAnnotation aaa_annot = df.getOWLAnnotation(aaaProp, labelAnnot);
+				OWLAnnotationAssertionAxiom annotAxiom = df.getOWLAnnotationAssertionAxiom(desc.getIRI(), aaa_annot);
 				manager.addAxiom(getCurrentOntology(), annotAxiom);
 			}
 		}
 		if (!fmaClasses.isEmpty()) {
 			OWLEquivalentClassesAxiom ax = getAxiom(desc, fmaClasses, pourFmaType);
 			manager.addAxiom(ont, ax);
-			if (fmaClasses.size() > 1)
-				logger.warning("Many FMA ID: (class " + desc.toString()
-						+ ")");
+//			if (fmaClasses.size() > 1)
+//				logger.warning("Many FMA ID: (class " + desc.toString()
+//						+ ")");
 		}
 		return super.visit(desc);
 	}
@@ -201,35 +200,36 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 
 	private Set<IRI> alreadyMadeFma = new HashSet<IRI>();
 
-	public void convertFmaConceptToOntolUrgenceConcept(OWLClass cls, PourFmaType pourFmaType) {
-		if (alreadyMadeFma.contains(cls.getIRI()))
+	public void convertFmaConceptToOntolUrgenceConcept(OWLClass fmaCls, PourFmaType pourFmaType) {
+		if (alreadyMadeFma.contains(fmaCls.getIRI()))
 			return;
-		alreadyMadeFma.add(cls.getIRI());
+		alreadyMadeFma.add(fmaCls.getIRI());
 		
 		OWLOntology ont = getCurrentOntology();
 		OWLOntologyManager manager = ont.getOWLOntologyManager();
 		OWLDataFactory df = manager.getOWLDataFactory();		
 
-		OWLAnnotationValue labelAnnot = extractLabelFromFma(cls);
+		OWLAnnotationValue labelAnnot = extractLabelFromFma(fmaCls);
 
-		Set<OWLAnnotation> ids = cls.getAnnotations(fmaOnto, fmaIDProp);
+		/* Ajouter l'annotation FMAID de la classe FMA */
+		Set<OWLAnnotation> ids = fmaCls.getAnnotations(fmaOnto, fmaIDProp);
 		if (!ids.isEmpty()) {
 			OWLAnnotation annot = ids.iterator().next();
 			OWLAnnotationAssertionAxiom annotAxiom = df
-					.getOWLAnnotationAssertionAxiom(cls.getIRI(), annot);
+					.getOWLAnnotationAssertionAxiom(fmaCls.getIRI(), annot);
 			manager.addAxiom(getCurrentOntology(), annotAxiom);
 		}
-
-		OWLAnnotationProperty prefLabelProp = df
-				.getOWLAnnotationProperty(SKOSVocabulary.PREFLABEL.getIRI());
+		
+		/* Ajouter un SKOS prefLabel pour Protégé */
 		OWLAnnotation annot = df.getOWLAnnotation(prefLabelProp, labelAnnot);
-		OWLAnnotationAssertionAxiom annotAxiom = df
-				.getOWLAnnotationAssertionAxiom(cls.getIRI(), annot);
+		OWLAnnotationAssertionAxiom annotAxiom = df.getOWLAnnotationAssertionAxiom(fmaCls.getIRI(), annot);
 		manager.addAxiom(getCurrentOntology(), annotAxiom);
 
-		convertFMAConceptToDisease(cls, pourFmaType);
+		/* Faire les DiseaseOf associés */
+		convertFMAConceptToDisease(fmaCls, pourFmaType);
 
-		Set<IRI> fathers = classIsPartOf.getUpConcepts(cls.getIRI());
+		/* Chercher mes pères de type "part-of" et les ajouter */
+		Set<IRI> fathers = classIsPartOf.getUpConcepts(fmaCls.getIRI());
 		if (!fathers.isEmpty()) {
 			for (IRI fatheriri : fathers) {
 				OWLClass father = df.getOWLClass(fatheriri);
@@ -237,18 +237,17 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 			}
 		}
 
-		for (OWLClassExpression fatherExp : cls.getSuperClasses(fmaOnto)) {
+		/* Ajouter les "is-a" classique à OntolUrgences */
+		for (OWLClassExpression fatherExp : fmaCls.getSuperClasses(fmaOnto)) {
 			if (fatherExp.isAnonymous())
 				continue;
 			OWLClass father = fatherExp.asOWLClass();
 
-			if (stopFatherCriteria(father.getIRI(), cls.getIRI())) {
-				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(cls,
-						structureAnatomique);
+			if (stopFatherCriteria(father.getIRI(), fmaCls.getIRI())) {
+				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(fmaCls, structureAnatomique);
 				manager.addAxiom(getCurrentOntology(), subAxiom);
 			} else {
-				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(cls,
-						father);
+				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(fmaCls, father);
 				manager.addAxiom(getCurrentOntology(), subAxiom);
 				convertFmaConceptToOntolUrgenceConcept(father, pourFmaType);
 			}
@@ -257,39 +256,35 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 
 	private Set<IRI> alreadyMadeDisease = new HashSet<IRI>();
 
-	public void convertFMAConceptToDisease(OWLClass cls, PourFmaType pourFmaType) {
-		if (alreadyMadeDisease.contains(cls.getIRI()))
+	public void convertFMAConceptToDisease(OWLClass fmaCls, PourFmaType pourFmaType) {
+		if (alreadyMadeDisease.contains(fmaCls.getIRI()))
 			return;
-		alreadyMadeDisease.add(cls.getIRI());
+		alreadyMadeDisease.add(fmaCls.getIRI());
 
 		OWLOntology ont = getCurrentOntology();
 		OWLOntologyManager manager = ont.getOWLOntologyManager();
 		OWLDataFactory df = manager.getOWLDataFactory();
 		
-		String ontolurgenceNS = Namespace.ONTOLURGENCES.getNS();
+		final String ontolurgenceNS = Namespace.ONTOLURGENCES.getNS();
 		
-		OWLAnnotationValue labelAnnot = extractLabelFromFma(cls);
-		String label = ((OWLLiteral) labelAnnot).getLiteral();
+		/* Extraire le label FMA */
+		OWLAnnotationValue labelAnnot = extractLabelFromFma(fmaCls);
+		String fmaLabel = ((OWLLiteral) labelAnnot).getLiteral();
 
-		IRI clsiri = cls.getIRI();
-		IRI newIri = IRI.create(ontolurgenceNS,
-				"DiseaseOf" + clsiri.getFragment());
-		OWLClass newCls = df.getOWLClass(newIri);
+		/* Creer un DiseaseOf vide */
+		IRI newIri = IRI.create(ontolurgenceNS, "DiseaseOf" + fmaCls.getIRI().getFragment());
+		OWLClass diseaseOfNewCls = df.getOWLClass(newIri);
 
-		OWLAnnotationValue newLabelAnnot = df.getOWLLiteral("Disease of "
-				+ label, "en");
-		OWLAnnotationProperty prefLabelProp = df
-				.getOWLAnnotationProperty(SKOSVocabulary.PREFLABEL.getIRI());
+		/* Lui ajouter un SKOS prefLabel reconstitué */
+		OWLAnnotationValue newLabelAnnot = df.getOWLLiteral("Disease of "+ fmaLabel, "en");
 		OWLAnnotation annot = df.getOWLAnnotation(prefLabelProp, newLabelAnnot);
-
-		OWLAnnotationAssertionAxiom annotAxiom = df
-				.getOWLAnnotationAssertionAxiom(newIri, annot);
+		OWLAnnotationAssertionAxiom annotAxiom = df.getOWLAnnotationAssertionAxiom(newIri, annot);
 		manager.addAxiom(getCurrentOntology(), annotAxiom);
 
-		OWLEquivalentClassesAxiom ax = getAxiom(newCls,
-				Collections.singleton(cls), pourFmaType);
+		OWLEquivalentClassesAxiom ax = getAxiom(diseaseOfNewCls, Collections.singleton(fmaCls), pourFmaType);
 		manager.addAxiom(getCurrentOntology(), ax);
 
+		/* L'ordre des priorité pour regarder les part-of */
 		final Collection<PartOfType> partOfPriority = Arrays.asList(
 				PartOfType.REGIONAL_PART,
 				PartOfType.CONSTITUTIONAL_PART,
@@ -297,25 +292,24 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		
 		Set<IRI> fathers = null;
 		for(PartOfType type: partOfPriority) {
-			Set<IRI> localFathers = classIsPartOf.getUpConcepts(cls.getIRI(), type);
+			Set<IRI> localFathers = classIsPartOf.getUpConcepts(fmaCls.getIRI(), type);
 			if(!localFathers.isEmpty()) {
 				fathers = localFathers;
 				break;
 			}
 		}
+		
+		/* Si il a des part-of pere */
 		if (fathers != null) {
 			for (IRI father : fathers) {
-				IRI fatherNewIri = IRI.create(ontolurgenceNS, "DiseaseOf"
-						+ father.getFragment());
+				IRI fatherNewIri = IRI.create(ontolurgenceNS, "DiseaseOf" + father.getFragment());
 				OWLClass diseaseFather = df.getOWLClass(fatherNewIri);
 
-				if (stopFatherCriteria(father, cls.getIRI())) {
-					OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(
-							newCls, diagnostic);
+				if (stopFatherCriteria(father, fmaCls.getIRI())) {
+					OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(diseaseOfNewCls, diagnostic);
 					manager.addAxiom(getCurrentOntology(), subAxiom);
 				} else {
-					OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(
-							newCls, diseaseFather);
+					OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(diseaseOfNewCls, diseaseFather);
 					manager.addAxiom(getCurrentOntology(), subAxiom);
 					convertFMAConceptToDisease(df.getOWLClass(father), pourFmaType);
 				}
@@ -323,24 +317,24 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 			return;
 		}
 
-		for (OWLClassExpression fatherExp : cls.getSuperClasses(fmaOnto)) {
+		for (OWLClassExpression fatherExp : fmaCls.getSuperClasses(fmaOnto)) {
 			if (fatherExp.isAnonymous())
 				continue;
 			OWLClass father = fatherExp.asOWLClass();
 			IRI fatherNewIri = IRI.create(ontolurgenceNS, "DiseaseOf"+ father.getIRI().getFragment());
 			OWLClass diseaseFather = df.getOWLClass(fatherNewIri);
 
-			if (stopFatherCriteria(father.getIRI(), cls.getIRI())) {
-				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(newCls, diagnostic);
+			if (stopFatherCriteria(father.getIRI(), fmaCls.getIRI())) {
+				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(diseaseOfNewCls, diagnostic);
 				manager.addAxiom(getCurrentOntology(), subAxiom);
 			} else {
-				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(newCls, diseaseFather);
+				OWLSubClassOfAxiom subAxiom = df.getOWLSubClassOfAxiom(diseaseOfNewCls, diseaseFather);
 				manager.addAxiom(getCurrentOntology(), subAxiom);
 				convertFMAConceptToDisease(father, pourFmaType);
 			}
 		}
 	}
-	
+
 	private boolean stopFatherCriteria(IRI father_iri, IRI myself_iri) {
 		boolean isFatherNode = (myself_iri.getFragment().toLowerCase().contains("system") && 
 				father_iri.getFragment().toLowerCase().contains("system")) ||
