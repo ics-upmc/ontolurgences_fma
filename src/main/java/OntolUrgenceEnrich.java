@@ -53,7 +53,7 @@ public class OntolUrgenceEnrich {
 	
 		logger.info("Load OntolUrgences");
 		final File ontolurgencesPath = new File(
-				"/home/mazman/ontologies/OntolUrgences/ontologie_fma_systeme_20150817.reset.owl");
+				"/home/mazman/ontologies/OntolUrgences/ontologie_fma_systeme_20150831.reset.owl");
 		OWLOntology ontolurgences = Tools.loadFromFile(manager, ontolurgencesPath);		
 
 		logger.info("Insert FMA class");
