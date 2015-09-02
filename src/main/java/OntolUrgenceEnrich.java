@@ -16,9 +16,10 @@ import org.semanticweb.owlapi.util.OWLOntologyWalker;
 
 
 public class OntolUrgenceEnrich {
+	private static Handler stdoutHandler = null;
 	private static Logger logger = Logger.getLogger(OntolUrgenceEnrich.class.getName());
 	static {
-		Handler stdoutHandler = new StreamHandler(System.out, new Formatter() {
+		stdoutHandler = new StreamHandler(System.out, new Formatter() {
 			@Override
 			public String format(LogRecord record) {
 				return record.getLevel().getName() + ": " + record.getMessage() + "\n";
@@ -64,6 +65,9 @@ public class OntolUrgenceEnrich {
 		final File outputFilePath = new File("/home/mazman/Bureau/OntolUrgences_new.owl");
 		Tools.saveToFile(ontolurgences, outputFilePath);
 		logger.info("Finished!!!");
+		
+		stdoutHandler.flush();
+		stdoutHandler.close();
 	}
 
 }
