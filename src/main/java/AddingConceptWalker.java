@@ -351,7 +351,7 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		OWLClassExpression onlyAxiom = null;
 		if(classesForSome.size() == 1) {
 			someAxiom = classesForSome.iterator().next();
-			onlyAxiom = classesForOnly.iterator().next();
+			onlyAxiom = df.getOWLObjectAllValuesFrom(localized, classesForOnly.iterator().next());
 		}
 		else {
 			OWLClassExpression forOnlyAxiom = null;
