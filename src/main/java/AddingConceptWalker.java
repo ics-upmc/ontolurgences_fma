@@ -30,6 +30,10 @@ import org.semanticweb.owlapi.util.OWLOntologyWalker;
 import org.semanticweb.owlapi.util.OWLOntologyWalkerVisitor;
 import org.semanticweb.owlapi.vocab.SKOSVocabulary;
 
+import com.google.common.collect.HashMultiset;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Multiset.Entry;
+
 public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 	private static Logger logger = Logger.getLogger(AddingConceptWalker.class.getName());
 	static {
@@ -57,6 +61,8 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 	private OWLOntology fmaOnto;
 	private Map<String, OWLClass> fmaIndex = null;
 	private FmaPartOfModel classIsPartOf = null;
+	
+	private Multiset<IRI> stats = null;
 
 	public AddingConceptWalker(OWLOntologyWalker walker, OWLOntology fmaOnto,
 			Map<String, OWLClass> fmaIndex, FmaPartOfModel classIsPartOf) {
@@ -65,6 +71,23 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 		this.fmaIndex = fmaIndex;
 		this.classIsPartOf = classIsPartOf;
 		this.stopFatherIris = new HashSet<IRI>();
+		this.stats = HashMultiset.create();
+	}
+	
+	public String getStatsString() {
+		StringBuilder buffer = new StringBuilder();
+		OWLOntology ont = getCurrentOntology();
+		OWLOntologyManager manager = ont.getOWLOntologyManager();
+		OWLDataFactory df = manager.getOWLDataFactory();
+		
+		for(Entry<IRI> entrySet: stats.entrySet()) {
+			OWLAnnotationValue labelAnnot = extractLabelFromFma(df.getOWLClass(entrySet.getElement()));
+			String label = ((OWLLiteral) labelAnnot).getLiteral();
+
+			buffer.append(label+": "+entrySet.getCount());
+			buffer.append('\n');
+		}
+		return buffer.toString();
 	}
 	
 	@Override
@@ -319,9 +342,11 @@ public class AddingConceptWalker extends OWLOntologyWalkerVisitor<Object> {
 	}
 	
 	private boolean stopFatherCriteria(IRI father_iri, IRI myself_iri) {
-		return (myself_iri.getFragment().toLowerCase().contains("system") && 
+		boolean isFatherNode = (myself_iri.getFragment().toLowerCase().contains("system") && 
 				father_iri.getFragment().toLowerCase().contains("system")) ||
 			   stopFatherIris.contains(father_iri);
+		if(isFatherNode) stats.add(father_iri);
+		return isFatherNode;
 	}
 
 	private OWLEquivalentClassesAxiom getAxiom(

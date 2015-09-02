@@ -13,7 +13,6 @@ import org.semanticweb.owlapi.model.OWLClass;
 import org.semanticweb.owlapi.model.OWLOntology;
 import org.semanticweb.owlapi.model.OWLOntologyManager;
 import org.semanticweb.owlapi.util.OWLOntologyWalker;
-import org.semanticweb.owlapi.util.OWLOntologyWalkerVisitor;
 
 
 public class OntolUrgenceEnrich {
@@ -58,9 +57,9 @@ public class OntolUrgenceEnrich {
 
 		logger.info("Insert FMA class");
 		OWLOntologyWalker ontolWalker = new OWLOntologyWalker(Collections.singleton(ontolurgences));
-		OWLOntologyWalkerVisitor<Object> ontolvisitor = new AddingConceptWalker(
-				ontolWalker, fma, fmaIndex, classIsPartOf);
+		AddingConceptWalker ontolvisitor = new AddingConceptWalker(ontolWalker, fma, fmaIndex, classIsPartOf);
 		ontolWalker.walkStructure(ontolvisitor);
+		logger.info(ontolvisitor.getStatsString());
 
 		final File outputFilePath = new File("/home/mazman/Bureau/OntolUrgences_new.owl");
 		Tools.saveToFile(ontolurgences, outputFilePath);
